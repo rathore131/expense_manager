@@ -1,4 +1,5 @@
 import { useExpenses, CATEGORY_COLORS } from "@/contexts/ExpenseContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -7,6 +8,7 @@ import { useMemo } from "react";
 
 const DashboardPage = () => {
   const { transactions, totalIncome, totalExpense, balance, monthlyBudget, categoryBudgets } = useExpenses();
+  const { fmt, symbol } = useCurrency();
 
   const budgetUsed = monthlyBudget > 0 ? Math.min((totalExpense / monthlyBudget) * 100, 100) : 0;
 
@@ -48,9 +50,9 @@ const DashboardPage = () => {
     <div className="space-y-6 max-w-6xl">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard icon={Wallet} label="Balance" value={`$${balance.toFixed(2)}`} />
-        <SummaryCard icon={TrendingUp} label="Income" value={`$${totalIncome.toFixed(2)}`} valueClass="text-income" iconClass="text-income" />
-        <SummaryCard icon={TrendingDown} label="Expenses" value={`$${totalExpense.toFixed(2)}`} valueClass="text-expense" iconClass="text-expense" />
+        <SummaryCard icon={Wallet} label="Balance" value={fmt(balance)} />
+        <SummaryCard icon={TrendingUp} label="Income" value={fmt(totalIncome)} valueClass="text-income" iconClass="text-income" />
+        <SummaryCard icon={TrendingDown} label="Expenses" value={fmt(totalExpense)} valueClass="text-expense" iconClass="text-expense" />
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-3">
@@ -63,7 +65,7 @@ const DashboardPage = () => {
               </div>
             </div>
             <Progress value={budgetUsed} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-1">${(monthlyBudget - totalExpense).toFixed(2)} remaining</p>
+            <p className="text-xs text-muted-foreground mt-1">{fmt(monthlyBudget - totalExpense)} remaining</p>
           </CardContent>
         </Card>
       </div>
@@ -89,7 +91,7 @@ const DashboardPage = () => {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [`$${value.toFixed(2)}`, ""]}
+                        formatter={(value: number) => [fmt(value), ""]}
                         contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.5rem", color: "hsl(var(--foreground))", fontSize: "0.8rem" }}
                       />
                     </PieChart>
@@ -100,7 +102,7 @@ const DashboardPage = () => {
                     <div key={item.name} className="flex items-center gap-2 text-sm">
                       <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[item.name] || "hsl(220,50%,55%)" }} />
                       <span className="text-foreground flex-1 truncate">{item.name}</span>
-                      <span className="font-medium text-foreground">${item.value.toFixed(2)}</span>
+                      <span className="font-medium text-foreground">{fmt(item.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -162,7 +164,7 @@ const DashboardPage = () => {
                     </div>
                   </div>
                   <span className={`text-sm font-display font-semibold ${t.type === "income" ? "text-income" : "text-expense"}`}>
-                    {t.type === "income" ? "+" : "-"}${t.amount.toFixed(2)}
+                    {t.type === "income" ? "+" : "-"}{fmt(t.amount)}
                   </span>
                 </div>
               ))
@@ -183,7 +185,7 @@ const DashboardPage = () => {
                 <div key={b.category} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-foreground font-medium">{b.category}</span>
-                    <span className="text-muted-foreground">${b.spent.toFixed(0)} / ${b.limit.toFixed(0)}</span>
+                    <span className="text-muted-foreground">{fmt(b.spent)} / {fmt(b.limit)}</span>
                   </div>
                   <Progress value={Math.min(b.pct, 100)} className="h-2" />
                 </div>

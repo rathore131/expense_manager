@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ExpenseProvider } from "@/contexts/ExpenseContext";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import AppLayout from "./components/AppLayout";
@@ -46,24 +47,26 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <ExpenseProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-              <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-              <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route index element={<DashboardPage />} />
-                <Route path="transactions" element={<TransactionsPage />} />
-                <Route path="budgets" element={<BudgetsPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ExpenseProvider>
-      </AuthProvider>
+      <CurrencyProvider>
+        <AuthProvider>
+          <ExpenseProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+                <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="transactions" element={<TransactionsPage />} />
+                  <Route path="budgets" element={<BudgetsPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </ExpenseProvider>
+        </AuthProvider>
+      </CurrencyProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

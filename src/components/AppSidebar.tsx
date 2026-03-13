@@ -12,7 +12,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   Sidebar,
@@ -41,12 +41,22 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { user, logout } = useAuth();
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains("dark"));
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
-  const toggleDark = () => {
-    document.documentElement.classList.toggle("dark");
-    setIsDark(!isDark);
-  };
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  const toggleDark = () => setIsDark(!isDark);
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "";
   const displayEmail = user?.email || "";
@@ -106,7 +116,7 @@ export function AppSidebar() {
           </div>
         )}
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDark}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDark} title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}>
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => logout()}>

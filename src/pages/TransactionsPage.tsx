@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useExpenses, CATEGORIES, CATEGORY_COLORS } from "@/contexts/ExpenseContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { Plus, Trash2, Search, ArrowUpRight, ArrowDownRight, X } from "lucide-re
 
 const TransactionsPage = () => {
   const { transactions, addTransaction, deleteTransaction } = useExpenses();
+  const { fmt } = useCurrency();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -164,7 +166,7 @@ const TransactionsPage = () => {
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className={`font-display font-semibold ${t.type === "income" ? "text-income" : "text-expense"}`}>
-                    {t.type === "income" ? "+" : "-"}${t.amount.toFixed(2)}
+                    {t.type === "income" ? "+" : "-"}{fmt(t.amount)}
                   </span>
                   <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteTransaction(t.id)}>
                     <Trash2 className="h-4 w-4 text-muted-foreground" />

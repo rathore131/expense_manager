@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useExpenses, CATEGORY_COLORS, CATEGORIES } from "@/contexts/ExpenseContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -18,6 +19,7 @@ const chartTooltipStyle = {
 
 const ReportsPage = () => {
   const { transactions, totalIncome, totalExpense } = useExpenses();
+  const { fmt } = useCurrency();
 
   const categoryData = useMemo(() => {
     const map = new Map<string, number>();
@@ -70,11 +72,11 @@ const ReportsPage = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground">Total Income</p>
-          <p className="text-lg font-display font-bold text-income">${totalIncome.toFixed(2)}</p>
+          <p className="text-lg font-display font-bold text-income">{fmt(totalIncome)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground">Total Expenses</p>
-          <p className="text-lg font-display font-bold text-expense">${totalExpense.toFixed(2)}</p>
+          <p className="text-lg font-display font-bold text-expense">{fmt(totalExpense)}</p>
         </CardContent></Card>
         <Card><CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground">Savings Rate</p>
@@ -101,7 +103,7 @@ const ReportsPage = () => {
                       <Pie data={categoryData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
                         {categoryData.map((e) => <Cell key={e.name} fill={CATEGORY_COLORS[e.name] || "hsl(220,50%,55%)"} />)}
                       </Pie>
-                      <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, ""]} contentStyle={chartTooltipStyle} />
+                      <Tooltip formatter={(v: number) => [fmt(v), ""]} contentStyle={chartTooltipStyle} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -111,7 +113,7 @@ const ReportsPage = () => {
                       <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[item.name] || "hsl(220,50%,55%)" }} />
                       <span className="text-foreground flex-1">{item.name}</span>
                       <span className="text-muted-foreground">{item.pct}%</span>
-                      <span className="font-medium text-foreground">${item.value.toFixed(2)}</span>
+                      <span className="font-medium text-foreground">{fmt(item.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -180,7 +182,7 @@ const ReportsPage = () => {
                     <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
                     <p className="text-xs text-muted-foreground">{t.category} · {t.date}</p>
                   </div>
-                  <span className="text-sm font-display font-semibold text-expense">${t.amount.toFixed(2)}</span>
+                  <span className="text-sm font-display font-semibold text-expense">{fmt(t.amount)}</span>
                 </div>
               ))
             )}

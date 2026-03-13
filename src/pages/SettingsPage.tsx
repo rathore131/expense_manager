@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useExpenses, CATEGORIES } from "@/contexts/ExpenseContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { User, Bell, Palette, Download } from "lucide-react";
 const SettingsPage = () => {
   const { user } = useAuth();
   const { transactions, monthlyBudget } = useExpenses();
-  const [currency, setCurrency] = useState("USD");
+  const { currency, setCurrency } = useCurrency();
   const [notifications, setNotifications] = useState(true);
   const [budgetAlerts, setBudgetAlerts] = useState(true);
 

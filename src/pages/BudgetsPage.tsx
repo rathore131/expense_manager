@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useExpenses, CATEGORIES, CATEGORY_COLORS } from "@/contexts/ExpenseContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import { Pencil, Check, Target } from "lucide-react";
 
 const BudgetsPage = () => {
   const { transactions, categoryBudgets, setCategoryBudget, monthlyBudget, setMonthlyBudget } = useExpenses();
+  const { fmt } = useCurrency();
   const [editingOverall, setEditingOverall] = useState(false);
   const [overallInput, setOverallInput] = useState(monthlyBudget.toString());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
@@ -60,7 +62,7 @@ const BudgetsPage = () => {
                     <Button size="sm" variant="outline" className="h-8" onClick={handleOverallSave}><Check className="h-3 w-3" /></Button>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">${totalExpense.toFixed(2)} spent of ${monthlyBudget.toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">{fmt(totalExpense)} spent of {fmt(monthlyBudget)}</p>
                 )}
               </div>
             </div>
@@ -73,7 +75,7 @@ const BudgetsPage = () => {
           <Progress value={overallPct} className="h-3" />
           <div className="flex justify-between text-xs text-muted-foreground mt-2">
             <span>{overallPct.toFixed(0)}% used</span>
-            <span>${Math.max(monthlyBudget - totalExpense, 0).toFixed(2)} remaining</span>
+            <span>{fmt(Math.max(monthlyBudget - totalExpense, 0))} remaining</span>
           </div>
         </CardContent>
       </Card>
@@ -110,9 +112,9 @@ const BudgetsPage = () => {
                   <>
                     <Progress value={item.pct} className="h-2 mb-2" />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>${item.spent.toFixed(2)} spent</span>
+                      <span>{fmt(item.spent)} spent</span>
                       <span className={item.pct >= 90 ? "text-expense font-medium" : ""}>
-                        ${Math.max(item.limit - item.spent, 0).toFixed(2)} left
+                        {fmt(Math.max(item.limit - item.spent, 0))} left
                       </span>
                     </div>
                   </>
