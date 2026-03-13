@@ -27,10 +27,10 @@ const Signup = () => {
       setError(err);
     } else {
       setSuccess(true);
-      // If Supabase has email confirmations disabled, the user
-      // is logged in immediately and onAuthStateChange will fire.
-      // Give a brief moment then navigate.
-      setTimeout(() => navigate("/"), 1500);
+      setSuccess(true);
+      // We don't manually navigate here.
+      // If email verification is enabled, the user stays here to see the "Check your email" message.
+      // If Demo Mode is on (or verification is disabled), AuthContext updates and PublicRoute auto-redirects to "/".
     }
   };
 
@@ -47,10 +47,16 @@ const Signup = () => {
         <CardContent>
           {success ? (
             <div className="rounded-lg bg-primary/10 border border-primary/20 p-4 text-center space-y-2">
-              <p className="text-sm font-medium text-foreground">Account created!</p>
-              <p className="text-xs text-muted-foreground">
-                Check your email to confirm your account, or you'll be redirected shortly.
+              <p className="text-sm font-medium text-foreground">Welcome to ExpenseHub!</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                We've sent a verification link to <strong>{email}</strong>.
               </p>
+              <p className="text-xs text-muted-foreground mt-4">
+                Please check your inbox (and spam folder) to verify your account before signing in.
+              </p>
+              <Button variant="outline" className="mt-6 w-full" onClick={() => navigate("/login")}>
+                Go to Sign In
+              </Button>
             </div>
           ) : (
             <>

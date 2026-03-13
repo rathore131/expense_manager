@@ -22,7 +22,13 @@ const Login = () => {
     const err = await login(email, password);
     setSubmitting(false);
     if (err) {
-      setError(err);
+      if (err.includes("Email not confirmed")) {
+        setError("Please verify your email address. Check your inbox for the confirmation link.");
+      } else if (err.includes("Invalid login credentials")) {
+        setError("Invalid email or password.");
+      } else {
+        setError(err);
+      }
     } else {
       navigate("/");
     }
