@@ -1,11 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase env vars. Copy .env.example to .env.local and fill in your Supabase project URL and anon key."
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "placeholder-key";
+
+if (!isDemoMode && (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY)) {
+  console.warn(
+    "Missing Supabase env vars. Set VITE_DEMO_MODE=true for demo mode, or copy .env.example to .env.local and fill in your Supabase credentials."
   );
 }
 

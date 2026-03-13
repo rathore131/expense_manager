@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, isDemoMode } from "@/lib/supabase";
 import { useAuth } from "./AuthContext";
 
 export interface Transaction {
@@ -41,6 +41,29 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Other: "hsl(220, 50%, 55%)",
 };
 
+// Sample data for demo mode
+const DEMO_TRANSACTIONS: Transaction[] = [
+  { id: "s1", title: "Monthly Salary", amount: 5000, category: "Salary", type: "income", date: "2026-03-01" },
+  { id: "s2", title: "Grocery Store", amount: 124.5, category: "Food", type: "expense", date: "2026-03-02" },
+  { id: "s3", title: "Metro Pass", amount: 45, category: "Transport", type: "expense", date: "2026-03-03" },
+  { id: "s4", title: "Netflix", amount: 15.99, category: "Entertainment", type: "expense", date: "2026-03-04" },
+  { id: "s5", title: "Electric Bill", amount: 89, category: "Bills", type: "expense", date: "2026-03-05" },
+  { id: "s6", title: "New Sneakers", amount: 120, category: "Shopping", type: "expense", date: "2026-03-06" },
+  { id: "s7", title: "Freelance Project", amount: 800, category: "Freelance", type: "income", date: "2026-03-07" },
+  { id: "s8", title: "Pharmacy", amount: 32, category: "Health", type: "expense", date: "2026-03-08" },
+  { id: "s9", title: "Restaurant", amount: 67, category: "Food", type: "expense", date: "2026-03-09" },
+  { id: "s10", title: "Uber Ride", amount: 18.5, category: "Transport", type: "expense", date: "2026-03-10" },
+];
+
+const DEMO_BUDGETS: CategoryBudget[] = [
+  { category: "Food", limit: 400 },
+  { category: "Transport", limit: 150 },
+  { category: "Shopping", limit: 300 },
+  { category: "Bills", limit: 200 },
+  { category: "Entertainment", limit: 100 },
+  { category: "Health", limit: 100 },
+];
+
 interface ExpenseContextType {
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, "id">) => Promise<void>;
@@ -75,6 +98,15 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
     if (!user) {
       setTransactions([]);
       setCategoryBudgets([]);
+      setMonthlyBudgetState(2000);
+      setLoading(false);
+      return;
+    }
+
+    // Demo mode: use sample data
+    if (isDemoMode) {
+      setTransactions(DEMO_TRANSACTIONS);
+      setCategoryBudgets(DEMO_BUDGETS);
       setMonthlyBudgetState(2000);
       setLoading(false);
       return;
@@ -133,6 +165,12 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const addTransaction = useCallback(
     async (t: Omit<Transaction, "id">) => {
       if (!user) return;
+
+      if (isDemoMode) {
+        setTransactions((prev) => [{ ...t, id: crypto.randomUUID() }, ...prev]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("transactions")
         .insert({
@@ -167,6 +205,12 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const deleteTransaction = useCallback(
     async (id: string) => {
       if (!user) return;
+
+      if (isDemoMode) {
+        setTransactions((prev) => prev.filter((t) => t.id !== id));
+        return;
+      }
+
       const { error } = await supabase.from("transactions").delete().eq("id", id);
       if (!error) {
         setTransactions((prev) => prev.filter((t) => t.id !== id));
@@ -178,6 +222,16 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const setCategoryBudget = useCallback(
     async (category: string, limit: number) => {
       if (!user) return;
+
+      if (isDemoMode) {
+        setCategoryBudgets((prev) => {
+          const existing = prev.find((b) => b.category === category);
+          if (existing) return prev.map((b) => (b.category === category ? { ...b, limit } : b));
+          return [...prev, { category, limit }];
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from("category_budgets")
         .upsert(
@@ -198,6 +252,12 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const setMonthlyBudget = useCallback(
     async (v: number) => {
       if (!user) return;
+
+      if (isDemoMode) {
+        setMonthlyBudgetState(v);
+        return;
+      }
+
       const { error } = await supabase
         .from("user_settings")
         .upsert({ user_id: user.id, monthly_budget: v }, { onConflict: "user_id" });

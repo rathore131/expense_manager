@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, isDemoMode } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
+
+const DEMO_USER = {
+  id: "demo-user-id",
+  email: "demo@example.com",
+  user_metadata: { full_name: "Demo User" },
+} as unknown as User;
 
 interface AuthContextType {
   user: User | null;
@@ -23,6 +29,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isDemoMode) {
+      setLoading(false);
+      return;
+    }
+
     // Check existing session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -40,11 +51,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string): Promise<string | null> => {
+    if (isDemoMode) {
+      setUser(DEMO_USER);
+      return null;
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return error ? error.message : null;
   };
 
   const signup = async (name: string, email: string, password: string): Promise<string | null> => {
+    if (isDemoMode) {
+      setUser({ ...DEMO_USER, user_metadata: { full_name: name }, email } as unknown as User);
+      return null;
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -54,6 +73,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
+    if (isDemoMode) {
+      setUser(null);
+      return;
+    }
     await supabase.auth.signOut();
   };
 
