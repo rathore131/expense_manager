@@ -19,7 +19,7 @@ export default function OtpVerification() {
   const { verifyEmail } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state as { email?: string } | null;
+  const state = location.state as { email?: string; devOtp?: string } | null;
   const email = state?.email;
 
   useEffect(() => {
@@ -82,7 +82,12 @@ export default function OtpVerification() {
           </p>
         </div>
 
-
+        {state?.devOtp && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/50 flex flex-col items-center">
+             <p className="text-xs font-semibold text-amber-700 tracking-wider uppercase">Dev Mode OTP</p>
+             <p className="text-xl font-mono font-bold tracking-[0.3em] text-amber-900 mt-1">{state.devOtp}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
           {error && (
