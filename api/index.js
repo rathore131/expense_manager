@@ -61,7 +61,7 @@ const userSettingsSchema = new mongoose.Schema({
 const UserSettings = mongoose.models.UserSettings || mongoose.model('UserSettings', userSettingsSchema);
 
 // --- Email ---
-const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder');
+const resend = new Resend(process.env.RESEND_API_KEY || 're_N6Yooqzp_3NtC87zXjH16LYX1ba6EXNaA');
 
 // --- Auth Helper ---
 function verifyToken(authHeader) {
