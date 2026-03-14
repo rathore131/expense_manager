@@ -4,32 +4,53 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
-import crypto from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'easy-budget-buddy-super-secret-key-123';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://amansinghrathore221551_db_user:jVt0FLagIO5QYBgp@cluster0.0l5tf29.mongodb.net/expensehub?retryWrites=true&w=majority&appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI;
 
-// Connect to MongoDB
+// Initial state
 let isConnected = false;
-const connectDB = async () => {
-  if (isConnected) return;
-  try {
-    if (!MONGODB_URI) {
-      throw new Error('MONGODB_URI is not defined');
+
+// 1. Health Check (Move to TOP to bypass DB check if needed)
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    database: isConnected ? 'connected' : 'disconnected',
+    env: {
+      has_mongo: !!MONGODB_URI,
+      has_resend: !!process.env.RESEND_API_KEY
     }
-    // Added options for robustness in serverless
+  });
+});
+
+// 2. Test Route (No DB dependency)
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Serverless function is working!' });
+});
+
+// Database Connection
+const connectDB = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI is missing');
+  }
+
+  try {
     const db = await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 10000,
     });
-    isConnected = db.connections[0].readyState;
-    console.log('MongoDB Connected');
+    isConnected = true;
+    console.log('MongoDB connected');
   } catch (error) {
-    console.error('MongoDB ERROR:', error.message);
+    isConnected = false;
+    console.error('DB Connection FAIL:', error.message);
     throw error;
   }
 };
@@ -77,19 +98,15 @@ const UserSettings = mongoose.models.UserSettings || mongoose.model('UserSetting
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_123456789");
 
-// Middleware: DB Connection
+// Middleware: DB Connection for all other routes
 app.use(async (req, res, next) => {
+  if (req.path === '/api/health' || req.path === '/api/test') return next();
   try {
     await connectDB();
     next();
   } catch (err) {
-    res.status(503).json({ error: 'Database Connection Error', details: err.message });
+    res.status(503).json({ error: 'Database error', details: err.message });
   }
-});
-
-// Health Check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', database: isConnected ? 'connected' : 'disconnected' });
 });
 
 // Middleware: Auth
@@ -116,7 +133,7 @@ app.post('/api/auth/signup', async (req, res, next) => {
     if (existingUser) return res.status(400).json({ error: 'Account already exists' });
     
     const passwordHash = await bcrypt.hash(password, 10);
-    const userId = crypto.randomUUID();
+    const userId = randomUUID();
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
     await User.create({
@@ -140,12 +157,12 @@ app.post('/api/auth/signup', async (req, res, next) => {
         await resend.emails.send({
           from: 'ExpenseHub <onboarding@resend.dev>',
           to: email,
-          subject: `OTP: ${otp}`,
-          html: `<b>Your code: ${otp}</b>`
+          subject: `Your Verification Code: ${otp}`,
+          html: `<b>Your ExpenseHub verification code is: ${otp}</b>`
         });
       }
     } catch (e) {
-      console.error('Email Fail:', e.message);
+      console.error('Email Error:', e.message);
     }
     
     res.status(201).json({ message: 'Success', otp });
@@ -231,7 +248,7 @@ app.get('/api/transactions', authenticateToken, async (req, res, next) => {
 
 app.post('/api/transactions', authenticateToken, async (req, res, next) => {
   try {
-    const tx = await Transaction.create({ ...req.body, id: crypto.randomUUID(), user_id: req.user.sub });
+    const tx = await Transaction.create({ ...req.body, id: randomUUID(), user_id: req.user.sub });
     res.json({ data: [tx] });
   } catch (err) {
     next(err);
@@ -249,7 +266,7 @@ app.delete('/api/transactions/:id', authenticateToken, async (req, res, next) =>
 
 // Error Handler
 app.use((err, req, res, next) => {
-  console.error('SERVER ERROR:', err.message);
+  console.error('FINAL ERROR:', err.message);
   res.status(500).json({ error: 'Server Error', message: err.message });
 });
 
