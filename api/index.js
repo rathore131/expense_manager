@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 
 // --- Config ---
 const JWT_SECRET = process.env.JWT_SECRET || 'easy-budget-buddy-super-secret-key-123';
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://amansinghrathore221551_db_user:jVt0FLagIO5QYBgp@cluster0.0l5tf29.mongodb.net/expensehub?retryWrites=true&w=majority&appName=Cluster0';
 
 // --- DB Connection (cached across warm invocations) ---
 let cached = global._mongoConn;
