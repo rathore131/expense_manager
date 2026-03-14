@@ -1,0 +1,62 @@
+﻿node : C:\Users\amans\D
+ownloads\easy-budget-bu
+ddy-main\easy-budget-bu
+ddy-main\server\server.
+js:151
+At line:1 char:53
++ ... rogram 
+Files\nodejs;" + 
+$env:PATH; node 
+server/server.js 2>&1 
+| Out-F ...
++                      
+                  ~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (C:\Users\aman   
+ s\...r\server.js:1    
+51:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+    const 
+verificationUrl = \`htt
+p://localhost:3001/api/
+auth/verify/\${verifica
+tionToken}\`;
+                       
+     ^
+
+SyntaxError: Invalid 
+or unexpected token
+    at wrapSafe (node:i
+nternal/modules/cjs/loa
+der:1743:18)
+    at Module._compile 
+(node:internal/modules/
+cjs/loader:1786:20)
+    at Object..js (node
+:internal/modules/cjs/l
+oader:1943:10)
+    at Module.load (nod
+e:internal/modules/cjs/
+loader:1533:32)
+    at Module._load (no
+de:internal/modules/cjs
+/loader:1335:12)
+    at wrapModuleLoad (
+node:internal/modules/c
+js/loader:255:19)
+    at Module.executeUs
+erEntryPoint [as 
+runMain] (node:internal
+/modules/run_main:154:5
+)
+    at node:internal/ma
+in/run_main_module:33:4
+7
+
+Node.js v24.14.0
