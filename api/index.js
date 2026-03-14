@@ -18,11 +18,15 @@ let isConnected = false;
 const connectDB = async () => {
   if (isConnected) return;
   try {
+    if (!MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
     const db = await mongoose.connect(MONGODB_URI);
     isConnected = db.connections[0].readyState;
     console.log('MongoDB Connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    throw error; // Re-throw to be caught by error handler
   }
 };
 
@@ -443,6 +447,16 @@ app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Global error handler - Ensures we always return JSON
+app.use((err, req, res, next) => {
+  console.error('SERVER ERROR:', err);
+  res.status(err.status || 500).json({ 
+    error: 'Internal Server Error', 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+  });
 });
 
 module.exports = app;
