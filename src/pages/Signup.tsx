@@ -56,8 +56,8 @@ export default function Signup() {
     if (result.error) {
       setError(result.error);
     } else {
-      // Redirect to the dedicated OTP Verification Page, passing email and dev_otp if available
-      navigate("/verify-email", { state: { email, devOtp: result.otp } });
+      // Redirect to the OTP Verification Page
+      navigate("/verify-email", { state: { email } });
     }
   };
 

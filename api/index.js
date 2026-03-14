@@ -132,21 +132,19 @@ export default async function handler(req, res) {
       await User.create({ id: userId, email, password_hash: hash, full_name: name, verification_token: otp });
       await UserSettings.create({ user_id: userId, monthly_budget: 2000, currency: 'INR' });
 
-      // Send email (best-effort)
+      // Send verification email
       try {
-        if (process.env.RESEND_API_KEY) {
-          await resend.emails.send({
-            from: 'ExpenseHub <onboarding@resend.dev>',
-            to: email,
-            subject: `Your Verification Code: ${otp}`,
-            html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2>Verify Your Account</h2><p>Hello ${name},</p><p>Your 6-digit code:</p><div style="font-size:32px;font-weight:bold;letter-spacing:4px;color:#3b82f6;padding:20px;border:1px solid #e5e7eb;border-radius:8px;display:inline-block;margin:20px 0">${otp}</div></div>`
-          });
-        }
+        await resend.emails.send({
+          from: 'ExpenseHub <onboarding@resend.dev>',
+          to: email,
+          subject: `Your Verification Code: ${otp}`,
+          html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2>Verify Your Account</h2><p>Hello ${name},</p><p>Your 6-digit code:</p><div style="font-size:32px;font-weight:bold;letter-spacing:4px;color:#3b82f6;padding:20px;border:1px solid #e5e7eb;border-radius:8px;display:inline-block;margin:20px 0">${otp}</div></div>`
+        });
       } catch (emailErr) {
         console.error('Email send error:', emailErr.message);
       }
 
-      return json(res, 201, { message: 'Account created successfully', otp });
+      return json(res, 201, { message: 'Account created. Please check your email for the verification code.' });
     }
 
     // POST /api/auth/verify
@@ -176,17 +174,15 @@ export default async function handler(req, res) {
       await user.save();
 
       try {
-        if (process.env.RESEND_API_KEY) {
-          await resend.emails.send({
-            from: 'ExpenseHub <onboarding@resend.dev>',
-            to: email,
-            subject: `Password Reset Code: ${resetOtp}`,
-            html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2>Reset Your Password</h2><p>Your code:</p><div style="font-size:32px;font-weight:bold;letter-spacing:4px;color:#3b82f6;padding:20px;border:1px solid #e5e7eb;border-radius:8px;display:inline-block;margin:20px 0">${resetOtp}</div></div>`
-          });
-        }
+        await resend.emails.send({
+          from: 'ExpenseHub <onboarding@resend.dev>',
+          to: email,
+          subject: `Password Reset Code: ${resetOtp}`,
+          html: `<div style="font-family:sans-serif;text-align:center;padding:20px"><h2>Reset Your Password</h2><p>Your code:</p><div style="font-size:32px;font-weight:bold;letter-spacing:4px;color:#3b82f6;padding:20px;border:1px solid #e5e7eb;border-radius:8px;display:inline-block;margin:20px 0">${resetOtp}</div></div>`
+        });
       } catch (e) { console.error('Email error:', e.message); }
 
-      return json(res, 200, { message: 'If an account exists, a reset code has been sent.', dev_otp: resetOtp });
+      return json(res, 200, { message: 'If an account exists, a reset code has been sent.' });
     }
 
     // POST /api/auth/reset-password

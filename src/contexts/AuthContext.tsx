@@ -12,9 +12,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<string | null>;
-  signup: (name: string, email: string, password: string) => Promise<{ error?: string; otp?: string }>;
+  signup: (name: string, email: string, password: string) => Promise<{ error?: string }>;
   verifyEmail: (email: string, otp: string) => Promise<string | null>;
-  forgotPassword: (email: string) => Promise<{ error?: string; dev_otp?: string | null }>;
+  forgotPassword: (email: string) => Promise<{ error?: string }>;
   resetPassword: (email: string, otp: string, newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
 }
@@ -60,10 +60,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signup = async (name: string, email: string, password: string): Promise<{ error?: string; otp?: string }> => {
+  const signup = async (name: string, email: string, password: string): Promise<{ error?: string }> => {
     try {
-      const data = await API.post('/auth/signup', { name, email, password });
-      return { otp: data.otp };
+      await API.post('/auth/signup', { name, email, password });
+      return {};
     } catch (err: any) {
       return { error: err.message };
     }
@@ -78,10 +78,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const forgotPassword = async (email: string): Promise<{ error?: string; dev_otp?: string | null }> => {
+  const forgotPassword = async (email: string): Promise<{ error?: string }> => {
     try {
-      const data = await API.post('/auth/forgot-password', { email });
-      return { dev_otp: data.dev_otp };
+      await API.post('/auth/forgot-password', { email });
+      return {};
     } catch (err: any) {
       return { error: err.message };
     }
