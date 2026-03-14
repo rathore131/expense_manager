@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
-import { supabase, isDemoMode } from "@/lib/supabase";
+import { API } from "@/lib/api";
 import { useAuth } from "./AuthContext";
 
 export interface Transaction {
@@ -41,29 +41,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Other: "hsl(220, 50%, 55%)",
 };
 
-// Sample data for demo mode
-const DEMO_TRANSACTIONS: Transaction[] = [
-  { id: "s1", title: "Monthly Salary", amount: 5000, category: "Salary", type: "income", date: "2026-03-01" },
-  { id: "s2", title: "Grocery Store", amount: 124.5, category: "Food", type: "expense", date: "2026-03-02" },
-  { id: "s3", title: "Metro Pass", amount: 45, category: "Transport", type: "expense", date: "2026-03-03" },
-  { id: "s4", title: "Netflix", amount: 15.99, category: "Entertainment", type: "expense", date: "2026-03-04" },
-  { id: "s5", title: "Electric Bill", amount: 89, category: "Bills", type: "expense", date: "2026-03-05" },
-  { id: "s6", title: "New Sneakers", amount: 120, category: "Shopping", type: "expense", date: "2026-03-06" },
-  { id: "s7", title: "Freelance Project", amount: 800, category: "Freelance", type: "income", date: "2026-03-07" },
-  { id: "s8", title: "Pharmacy", amount: 32, category: "Health", type: "expense", date: "2026-03-08" },
-  { id: "s9", title: "Restaurant", amount: 67, category: "Food", type: "expense", date: "2026-03-09" },
-  { id: "s10", title: "Uber Ride", amount: 18.5, category: "Transport", type: "expense", date: "2026-03-10" },
-];
-
-const DEMO_BUDGETS: CategoryBudget[] = [
-  { category: "Food", limit: 400 },
-  { category: "Transport", limit: 150 },
-  { category: "Shopping", limit: 300 },
-  { category: "Bills", limit: 200 },
-  { category: "Entertainment", limit: 100 },
-  { category: "Health", limit: 100 },
-];
-
 interface ExpenseContextType {
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, "id">) => Promise<void>;
@@ -103,60 +80,32 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Demo mode: use sample data
-    if (isDemoMode) {
-      setTransactions(DEMO_TRANSACTIONS);
-      setCategoryBudgets(DEMO_BUDGETS);
-      setMonthlyBudgetState(2000);
-      setLoading(false);
-      return;
-    }
-
     const fetchData = async () => {
       setLoading(true);
+      try {
+        // Fetch transactions
+        const txnsRes = await API.get('/transactions');
+        setTransactions(txnsRes.data.map((t: any) => ({
+          ...t,
+          amount: Number(t.amount)
+        })));
 
-      // Fetch transactions
-      const { data: txns } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
-      if (txns) {
-        setTransactions(
-          txns.map((t) => ({
-            id: t.id,
-            title: t.title,
-            amount: Number(t.amount),
-            category: t.category,
-            type: t.type,
-            date: t.date,
-            note: t.note,
-          }))
-        );
+        // Fetch settings & budgets
+        const settingsRes = await API.get('/settings');
+        if (settingsRes.category_budgets) {
+          setCategoryBudgets(settingsRes.category_budgets.map((b: any) => ({
+            category: b.category,
+            limit: Number(b.limit)
+          })));
+        }
+        if (settingsRes.settings) {
+          setMonthlyBudgetState(Number(settingsRes.settings.monthly_budget));
+        }
+      } catch (err) {
+        console.error("Failed to load user data", err);
+      } finally {
+        setLoading(false);
       }
-
-      // Fetch category budgets
-      const { data: budgets } = await supabase
-        .from("category_budgets")
-        .select("*")
-        .eq("user_id", user.id);
-      if (budgets) {
-        setCategoryBudgets(
-          budgets.map((b) => ({ category: b.category, limit: Number(b.limit_amount) }))
-        );
-      }
-
-      // Fetch user settings
-      const { data: settings } = await supabase
-        .from("user_settings")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-      if (settings) {
-        setMonthlyBudgetState(Number(settings.monthly_budget));
-      }
-
-      setLoading(false);
     };
 
     fetchData();
@@ -165,38 +114,14 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const addTransaction = useCallback(
     async (t: Omit<Transaction, "id">) => {
       if (!user) return;
-
-      if (isDemoMode) {
-        setTransactions((prev) => [{ ...t, id: crypto.randomUUID() }, ...prev]);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .insert({
-          user_id: user.id,
-          title: t.title,
-          amount: t.amount,
-          category: t.category,
-          type: t.type,
-          date: t.date,
-          note: t.note || null,
-        })
-        .select()
-        .single();
-      if (!error && data) {
-        setTransactions((prev) => [
-          {
-            id: data.id,
-            title: data.title,
-            amount: Number(data.amount),
-            category: data.category,
-            type: data.type,
-            date: data.date,
-            note: data.note,
-          },
-          ...prev,
-        ]);
+      try {
+        const res = await API.post('/transactions', t);
+        if (res.data && res.data[0]) {
+          const newTx = { ...res.data[0], amount: Number(res.data[0].amount) };
+          setTransactions((prev) => [newTx, ...prev]);
+        }
+      } catch (err) {
+        console.error("Failed to add transaction", err);
       }
     },
     [user]
@@ -205,15 +130,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const deleteTransaction = useCallback(
     async (id: string) => {
       if (!user) return;
-
-      if (isDemoMode) {
+      try {
+        await API.delete(`/transactions/${id}`);
         setTransactions((prev) => prev.filter((t) => t.id !== id));
-        return;
-      }
-
-      const { error } = await supabase.from("transactions").delete().eq("id", id);
-      if (!error) {
-        setTransactions((prev) => prev.filter((t) => t.id !== id));
+      } catch (err) {
+        console.error("Failed to delete transaction", err);
       }
     },
     [user]
@@ -222,28 +143,15 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const setCategoryBudget = useCallback(
     async (category: string, limit: number) => {
       if (!user) return;
-
-      if (isDemoMode) {
+      try {
+        await API.post('/budgets', { category, limit });
         setCategoryBudgets((prev) => {
           const existing = prev.find((b) => b.category === category);
-          if (existing) return prev.map((b) => (b.category === category ? { ...b, limit } : b));
+          if (existing) return prev.map((b) => (b.category === category ? { category, limit } : b));
           return [...prev, { category, limit }];
         });
-        return;
-      }
-
-      const { error } = await supabase
-        .from("category_budgets")
-        .upsert(
-          { user_id: user.id, category, limit_amount: limit },
-          { onConflict: "user_id,category" }
-        );
-      if (!error) {
-        setCategoryBudgets((prev) => {
-          const existing = prev.find((b) => b.category === category);
-          if (existing) return prev.map((b) => (b.category === category ? { ...b, limit } : b));
-          return [...prev, { category, limit }];
-        });
+      } catch (err) {
+        console.error("Failed to set category budget", err);
       }
     },
     [user]
@@ -252,17 +160,11 @@ export const ExpenseProvider = ({ children }: { children: ReactNode }) => {
   const setMonthlyBudget = useCallback(
     async (v: number) => {
       if (!user) return;
-
-      if (isDemoMode) {
+      try {
+        await API.put('/settings', { monthly_budget: v });
         setMonthlyBudgetState(v);
-        return;
-      }
-
-      const { error } = await supabase
-        .from("user_settings")
-        .upsert({ user_id: user.id, monthly_budget: v }, { onConflict: "user_id" });
-      if (!error) {
-        setMonthlyBudgetState(v);
+      } catch (err) {
+        console.error("Failed to update monthly budget", err);
       }
     },
     [user]

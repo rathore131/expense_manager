@@ -1,21 +1,16 @@
-import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useExpenses, CATEGORIES } from "@/contexts/ExpenseContext";
+import { useExpenses } from "@/contexts/ExpenseContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { User, Bell, Palette, Download } from "lucide-react";
+import { User, Palette, Download } from "lucide-react";
 
 const SettingsPage = () => {
   const { user } = useAuth();
-  const { transactions, monthlyBudget } = useExpenses();
+  const { transactions } = useExpenses();
   const { currency, setCurrency } = useCurrency();
-  const [notifications, setNotifications] = useState(true);
-  const [budgetAlerts, setBudgetAlerts] = useState(true);
 
   const handleExportCSV = () => {
     const headers = "Title,Amount,Type,Category,Date,Note\n";
@@ -75,31 +70,6 @@ const SettingsPage = () => {
                 <SelectItem value="INR">INR (₹)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-display flex items-center gap-2">
-            <Bell className="h-4 w-4" /> Notifications
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Push Notifications</p>
-              <p className="text-xs text-muted-foreground">Get notified about new transactions</p>
-            </div>
-            <Switch checked={notifications} onCheckedChange={setNotifications} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-foreground">Budget Alerts</p>
-              <p className="text-xs text-muted-foreground">Alert when budget exceeds 80%</p>
-            </div>
-            <Switch checked={budgetAlerts} onCheckedChange={setBudgetAlerts} />
           </div>
         </CardContent>
       </Card>

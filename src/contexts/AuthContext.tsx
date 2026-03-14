@@ -1,18 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase, isDemoMode } from "@/lib/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import { API } from "@/lib/api";
 
-const DEMO_USER = {
-  id: "demo-user-id",
-  email: "demo@example.com",
-  user_metadata: { full_name: "Demo User" },
-} as unknown as User;
+interface User {
+  id: string;
+  email: string;
+  has_completed_onboarding: number;
+  user_metadata: { full_name: string };
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<string | null>;
-  signup: (name: string, email: string, password: string) => Promise<string | null>;
+  signup: (name: string, email: string, password: string) => Promise<{ error?: string; otp?: string }>;
+  verifyEmail: (email: string, otp: string) => Promise<string | null>;
+  forgotPassword: (email: string) => Promise<{ error?: string; dev_otp?: string | null }>;
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
 }
 
@@ -29,59 +32,77 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isDemoMode) {
+    // Check local session
+    const token = localStorage.getItem('supabase-auth-token');
+    if (token) {
+      API.get('/auth/me')
+        .then(data => {
+          setUser(data.user);
+        })
+        .catch(() => {
+          localStorage.removeItem('supabase-auth-token');
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
+    } else {
       setLoading(false);
-      return;
     }
-
-    // Check existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string): Promise<string | null> => {
-    if (isDemoMode) {
-      setUser(DEMO_USER);
+    try {
+      const data = await API.post('/auth/login', { email, password });
+      localStorage.setItem('supabase-auth-token', data.access_token);
+      setUser(data.user);
       return null;
+    } catch (err: any) {
+      return err.message;
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
   };
 
-  const signup = async (name: string, email: string, password: string): Promise<string | null> => {
-    if (isDemoMode) {
-      setUser({ ...DEMO_USER, user_metadata: { full_name: name }, email } as unknown as User);
-      return null;
+  const signup = async (name: string, email: string, password: string): Promise<{ error?: string; otp?: string }> => {
+    try {
+      const data = await API.post('/auth/signup', { name, email, password });
+      return { otp: data.otp };
+    } catch (err: any) {
+      return { error: err.message };
     }
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name } },
-    });
-    return error ? error.message : null;
+  };
+
+  const verifyEmail = async (email: string, otp: string): Promise<string | null> => {
+    try {
+      await API.post('/auth/verify', { email, otp });
+      return null;
+    } catch (err: any) {
+      return err.message;
+    }
+  };
+
+  const forgotPassword = async (email: string): Promise<{ error?: string; dev_otp?: string | null }> => {
+    try {
+      const data = await API.post('/auth/forgot-password', { email });
+      return { dev_otp: data.dev_otp };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  };
+
+  const resetPassword = async (email: string, otp: string, newPassword: string): Promise<string | null> => {
+    try {
+      await API.post('/auth/reset-password', { email, otp, newPassword });
+      return null;
+    } catch (err: any) {
+      return err.message;
+    }
   };
 
   const logout = async () => {
-    if (isDemoMode) {
-      setUser(null);
-      return;
-    }
-    await supabase.auth.signOut();
+    localStorage.removeItem('supabase-auth-token');
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, verifyEmail, forgotPassword, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
