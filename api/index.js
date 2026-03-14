@@ -3,7 +3,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { MailerSend, EmailParams, Sender, Recipient } = require("mailersend");
+const { Resend } = require('resend');
 const crypto = require('crypto');
 
 const app = express();
@@ -68,10 +68,8 @@ const userSettingsSchema = new mongoose.Schema({
 });
 const UserSettings = mongoose.models.UserSettings || mongoose.model('UserSettings', userSettingsSchema);
 
-// Configure MailerSend
-const mailerSend = new MailerSend({
-  apiKey: process.env.MAILERSEND_API_KEY || "mlsn.79ce052ecb6281df585f11edb86c748b1df2c31634b0aed75af197b999a14e6d",
-});
+// Configure Resend
+const resend = new Resend(process.env.RESEND_API_KEY || "re_123456789");
 
 // Global Middleware to ensure DB connection
 app.use(async (req, res, next) => {
@@ -124,29 +122,27 @@ app.post('/api/auth/signup', async (req, res) => {
       currency: 'USD'
     });
     
-    const sentFrom = new Sender("info@test-68zxl278wqk4j905.mlsender.net", "ExpenseHub");
-    const recipients = [new Recipient(email, name)];
-
-    const emailParams = new EmailParams()
-      .setFrom(sentFrom)
-      .setTo(recipients)
-      .setSubject(`Your ExpenseHub Verification Code: ${verificationToken}`)
-      .setHtml(`
-        <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-          <h2>Verify Your Account</h2>
-          <p>Hello ${name},</p>
-          <p>Please use the following 6-digit code to complete your registration:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
-            ${verificationToken}
-          </div>
-          <p>This code is unique to your account and should not be shared.</p>
-          <p>Thanks!<br>The ExpenseHub Team</p>
-        </div>
-      `)
-      .setText(`Hello ${name},\n\nYour 6-digit verification code is: ${verificationToken}\n\nThanks!\nThe ExpenseHub Team`);
-
     try {
-      await mailerSend.email.send(emailParams);
+      if (process.env.RESEND_API_KEY) {
+        await resend.emails.send({
+          from: 'ExpenseHub <onboarding@resend.dev>',
+          to: email,
+          subject: `Your ExpenseHub Verification Code: ${verificationToken}`,
+          html: `
+            <div style="font-family: sans-serif; text-align: center; padding: 20px;">
+              <h2>Verify Your Account</h2>
+              <p>Hello ${name},</p>
+              <p>Please use the following 6-digit code to complete your registration:</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
+                ${verificationToken}
+              </div>
+              <p>This code is unique to your account and should not be shared.</p>
+              <p>Thanks!<br>The ExpenseHub Team</p>
+            </div>
+          `
+        });
+        console.log(`Verification Email Sent to ${email} via Resend!`);
+      }
       res.status(201).json({ message: 'User created. Please check your email.', otp: verificationToken });
     } catch (emailErr) {
       console.log(`[LOCAL DEV] OTP for ${email} is: ${verificationToken}`);
@@ -195,30 +191,28 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     user.verification_token = resetToken;
     await user.save();
 
-    const sentFrom = new Sender("info@test-68zxl278wqk4j905.mlsender.net", "ExpenseHub Support");
-    const recipients = [new Recipient(email, user.full_name || 'User')];
-
-    const emailParams = new EmailParams()
-      .setFrom(sentFrom)
-      .setTo(recipients)
-      .setSubject(`ExpenseHub Password Reset Code: ${resetToken}`)
-      .setHtml(`
-        <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-          <h2>Reset Your Password</h2>
-          <p>Hello ${user.full_name || 'User'},</p>
-          <p>We received a request to reset your password. Use the code below to complete the reset process:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
-            ${resetToken}
-          </div>
-          <p>If you did not request this, please ignore this email.</p>
-          <p>Thanks!<br>The ExpenseHub Team</p>
-        </div>
-      `)
-      .setText(`Hello ${user.full_name || 'User'},\n\nYour 6-digit password reset code is: ${resetToken}\n\nThanks!\nThe ExpenseHub Team`);
-
     try {
-      await mailerSend.email.send(emailParams);
-      res.json({ message: 'If an account exists, a reset code has been sent.', dev_otp: null });
+      if (process.env.RESEND_API_KEY) {
+        await resend.emails.send({
+          from: 'ExpenseHub Support <onboarding@resend.dev>',
+          to: email,
+          subject: `ExpenseHub Password Reset Code: ${resetToken}`,
+          html: `
+            <div style="font-family: sans-serif; text-align: center; padding: 20px;">
+              <h2>Reset Your Password</h2>
+              <p>Hello ${user.full_name || 'User'},</p>
+              <p>We received a request to reset your password. Use the code below to complete the reset process:</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
+                ${resetToken}
+              </div>
+              <p>If you did not request this, please ignore this email.</p>
+              <p>Thanks!<br>The ExpenseHub Team</p>
+            </div>
+          `
+        });
+        console.log(`Password Reset Email Sent to ${email} via Resend!`);
+      }
+      res.json({ message: 'If an account exists, a reset code has been sent.', dev_otp: resetToken });
     } catch (emailErr) {
       console.log(`[LOCAL DEV] Password Reset OTP for ${email} is: ${resetToken}`);
       res.json({ message: 'If an account exists, a reset code has been sent (local dev bypass).', dev_otp: resetToken });
