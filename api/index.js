@@ -1,10 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { Resend } = require('resend');
-const crypto = require('crypto');
+import express from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { Resend } from 'resend';
+import crypto from 'crypto';
 
 const app = express();
 app.use(cors());
@@ -26,7 +26,7 @@ const connectDB = async () => {
     console.log('MongoDB Connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);
-    throw error; // Re-throw to be caught by error handler
+    throw error;
   }
 };
 
@@ -61,7 +61,6 @@ const categoryBudgetSchema = new mongoose.Schema({
   category: { type: String, required: true },
   limit_amount: { type: Number, required: true }
 });
-// Ensure compound index for user and category is unique
 categoryBudgetSchema.index({ user_id: 1, category: 1 }, { unique: true });
 const CategoryBudget = mongoose.models.CategoryBudget || mongoose.model('CategoryBudget', categoryBudgetSchema);
 
@@ -77,8 +76,12 @@ const resend = new Resend(process.env.RESEND_API_KEY || "re_123456789");
 
 // Global Middleware to ensure DB connection
 app.use(async (req, res, next) => {
-  await connectDB();
-  next();
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Middleware: Verify JWT Token
@@ -97,8 +100,7 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTH ROUTES ---
 
-// Signup
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', async (req, res, next) => {
   const { name, email, password } = req.body;
   if (!email || !password || !name) return res.status(400).json({ error: 'Missing required fields' });
   
@@ -145,28 +147,24 @@ app.post('/api/auth/signup', async (req, res) => {
             </div>
           `
         });
-        console.log(`Verification Email Sent to ${email} via Resend!`);
       }
       res.status(201).json({ message: 'User created. Please check your email.', otp: verificationToken });
     } catch (emailErr) {
-      console.log(`[LOCAL DEV] OTP for ${email} is: ${verificationToken}`);
-      res.status(201).json({ message: 'User created.', otp: verificationToken });
+      res.status(201).json({ message: 'User created (email error).', otp: verificationToken });
     }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    next(err);
   }
 });
 
-// Verify OTP
-app.post('/api/auth/verify', async (req, res) => {
+app.post('/api/auth/verify', async (req, res, next) => {
   const { email, otp } = req.body;
   if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
 
   try {
     const user = await User.findOne({ email, verification_token: otp, is_verified: 0 });
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or incorrect verification code. Please try again.' });
+      return res.status(400).json({ error: 'Invalid or incorrect verification code.' });
     }
     
     user.is_verified = 1;
@@ -175,13 +173,11 @@ app.post('/api/auth/verify', async (req, res) => {
     
     res.json({ message: 'Email Verified Successfully!' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server Error' });
+    next(err);
   }
 });
 
-// Forgot Password
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', async (req, res, next) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
@@ -214,21 +210,17 @@ app.post('/api/auth/forgot-password', async (req, res) => {
             </div>
           `
         });
-        console.log(`Password Reset Email Sent to ${email} via Resend!`);
       }
       res.json({ message: 'If an account exists, a reset code has been sent.', dev_otp: resetToken });
     } catch (emailErr) {
-      console.log(`[LOCAL DEV] Password Reset OTP for ${email} is: ${resetToken}`);
-      res.json({ message: 'If an account exists, a reset code has been sent (local dev bypass).', dev_otp: resetToken });
+      res.json({ message: 'If an account exists, a reset code has been sent (local bypass).', dev_otp: resetToken });
     }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    next(err);
   }
 });
 
-// Reset Password
-app.post('/api/auth/reset-password', async (req, res) => {
+app.post('/api/auth/reset-password', async (req, res, next) => {
   const { email, otp, newPassword } = req.body;
   if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Missing required fields' });
 
@@ -245,13 +237,11 @@ app.post('/api/auth/reset-password', async (req, res) => {
     
     res.json({ message: 'Password successfully updated.' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    next(err);
   }
 });
 
-// Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing required fields' });
   
@@ -281,182 +271,101 @@ app.post('/api/auth/login', async (req, res) => {
         user_metadata: { full_name: user.full_name }
       }
     });
-
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    next(err);
   }
 });
 
-// Get Current User Info
-app.get('/api/auth/me', authenticateToken, async (req, res) => {
+app.get('/api/auth/me', authenticateToken, async (req, res, next) => {
   try {
     const user = await User.findOne({ id: req.user.sub });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user: { id: user.id, email: user.email, has_completed_onboarding: user.has_completed_onboarding, user_metadata: { full_name: user.full_name } } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    next(err);
   }
 });
 
-// --- RESOURCE ROUTES (Protected) ---
-
-// Get User Settings & Category Budgets
-app.get('/api/settings', authenticateToken, async (req, res) => {
+app.get('/api/settings', authenticateToken, async (req, res, next) => {
   try {
     const settings = await UserSettings.findOne({ user_id: req.user.sub });
     const budgets = await CategoryBudget.find({ user_id: req.user.sub });
-    
     res.json({ 
       settings: settings || {}, 
       category_budgets: budgets.map(b => ({ category: b.category, limit: b.limit_amount })) 
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// Update Settings
-app.put('/api/settings', authenticateToken, async (req, res) => {
+app.put('/api/settings', authenticateToken, async (req, res, next) => {
   const { monthly_budget, currency } = req.body;
   try {
     const update = {};
     if (monthly_budget !== undefined) update.monthly_budget = monthly_budget;
     if (currency !== undefined) update.currency = currency;
-    
-    await UserSettings.findOneAndUpdate(
-      { user_id: req.user.sub },
-      { $set: update },
-      { new: true, upsert: true }
-    );
+    await UserSettings.findOneAndUpdate({ user_id: req.user.sub }, { $set: update }, { new: true, upsert: true });
     res.json({ success: true, message: 'Settings updated' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// New Onboarding Settings Route
-app.post('/api/settings/onboarding', authenticateToken, async (req, res) => {
+app.post('/api/settings/onboarding', authenticateToken, async (req, res, next) => {
   const { monthly_budget, currency } = req.body;
-  if (!currency || monthly_budget === undefined) {
-    return res.status(400).json({ error: 'Currency and budget are required' });
-  }
+  if (!currency || monthly_budget === undefined) return res.status(400).json({ error: 'Currency and budget are required' });
   try {
-    await UserSettings.findOneAndUpdate(
-      { user_id: req.user.sub },
-      { $set: { monthly_budget, currency } },
-      { new: true, upsert: true }
-    );
-    
-    await User.findOneAndUpdate(
-      { id: req.user.sub },
-      { $set: { has_completed_onboarding: 1 } }
-    );
-    
+    await UserSettings.findOneAndUpdate({ user_id: req.user.sub }, { $set: { monthly_budget, currency } }, { new: true, upsert: true });
+    await User.findOneAndUpdate({ id: req.user.sub }, { $set: { has_completed_onboarding: 1 } });
     res.json({ message: 'Onboarding completed successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server Error' });
+    next(err);
   }
 });
 
-// Upsert Category Budget
-app.post('/api/budgets', authenticateToken, async (req, res) => {
+app.post('/api/budgets', authenticateToken, async (req, res, next) => {
   const { category, limit } = req.body;
   try {
-    await CategoryBudget.findOneAndUpdate(
-      { user_id: req.user.sub, category },
-      { $set: { limit_amount: limit }, $setOnInsert: { id: crypto.randomUUID() } },
-      { new: true, upsert: true }
-    );
+    await CategoryBudget.findOneAndUpdate({ user_id: req.user.sub, category }, { $set: { limit_amount: limit }, $setOnInsert: { id: crypto.randomUUID() } }, { new: true, upsert: true });
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// Get Transactions
-app.get('/api/transactions', authenticateToken, async (req, res) => {
+app.get('/api/transactions', authenticateToken, async (req, res, next) => {
   try {
     const transactions = await Transaction.find({ user_id: req.user.sub }).sort({ date: -1, created_at: -1 });
-    // Transform `_id` and internal details just in case, but formatting usually maps out neatly
-    const data = transactions.map(tx => ({
-      id: tx.id,
-      user_id: tx.user_id,
-      title: tx.title,
-      amount: tx.amount,
-      type: tx.type,
-      category: tx.category,
-      date: tx.date,
-      note: tx.note,
-      created_at: tx.created_at
-    }));
-    res.json({ data });
+    res.json({ data: transactions.map(tx => ({ id: tx.id, user_id: tx.user_id, title: tx.title, amount: tx.amount, type: tx.type, category: tx.category, date: tx.date, note: tx.note, created_at: tx.created_at })) });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// Add Transaction
-app.post('/api/transactions', authenticateToken, async (req, res) => {
+app.post('/api/transactions', authenticateToken, async (req, res, next) => {
   const { title, amount, type, category, date, note } = req.body;
   try {
-    const txId = crypto.randomUUID();
-    const newTx = await Transaction.create({
-      id: txId,
-      user_id: req.user.sub,
-      title,
-      amount,
-      type,
-      category,
-      date,
-      note
-    });
-    
-    res.status(201).json({ 
-      data: [{
-        id: newTx.id,
-        user_id: newTx.user_id,
-        title: newTx.title,
-        amount: newTx.amount,
-        type: newTx.type,
-        category: newTx.category,
-        date: newTx.date,
-        note: newTx.note,
-        created_at: newTx.created_at
-      }] 
-    });
+    const newTx = await Transaction.create({ id: crypto.randomUUID(), user_id: req.user.sub, title, amount, type, category, date, note });
+    res.status(201).json({ data: [{ id: newTx.id, user_id: newTx.user_id, title: newTx.title, amount: newTx.amount, type: newTx.type, category: newTx.category, date: newTx.date, note: newTx.note, created_at: newTx.created_at }] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// Delete Transaction
-app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
+app.delete('/api/transactions/:id', authenticateToken, async (req, res, next) => {
   const { id } = req.params;
   try {
     await Transaction.findOneAndDelete({ id, user_id: req.user.sub });
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 });
 
-// Global error handler - Ensures we always return JSON
 app.use((err, req, res, next) => {
   console.error('SERVER ERROR:', err);
-  res.status(err.status || 500).json({ 
-    error: 'Internal Server Error', 
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
-  });
+  res.status(err.status || 500).json({ error: 'Internal Server Error', message: err.message });
 });
 
-module.exports = app;
+export default app;
