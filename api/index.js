@@ -19,18 +19,22 @@ const connectDB = async () => {
   if (isConnected) return;
   try {
     if (!MONGODB_URI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
+      throw new Error('MONGODB_URI is not defined');
     }
-    const db = await mongoose.connect(MONGODB_URI);
+    // Added options for robustness in serverless
+    const db = await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 10000,
+    });
     isConnected = db.connections[0].readyState;
-    console.log('MongoDB Connected successfully');
+    console.log('MongoDB Connected');
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('MongoDB ERROR:', error.message);
     throw error;
   }
 };
 
-// --- Mongoose Models ---
+// --- Models ---
 const userSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
@@ -71,46 +75,49 @@ const userSettingsSchema = new mongoose.Schema({
 });
 const UserSettings = mongoose.models.UserSettings || mongoose.model('UserSettings', userSettingsSchema);
 
-// Configure Resend
 const resend = new Resend(process.env.RESEND_API_KEY || "re_123456789");
 
-// Global Middleware to ensure DB connection
+// Middleware: DB Connection
 app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
   } catch (err) {
-    next(err);
+    res.status(503).json({ error: 'Database Connection Error', details: err.message });
   }
 });
 
-// Middleware: Verify JWT Token
+// Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', database: isConnected ? 'connected' : 'disconnected' });
+});
+
+// Middleware: Auth
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) return res.status(401).json({ error: 'Access token required' });
+  if (!token) return res.status(401).json({ error: 'Token required' });
   
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
     next();
   });
 };
 
-// --- AUTH ROUTES ---
+// --- AUTH ---
 
 app.post('/api/auth/signup', async (req, res, next) => {
   const { name, email, password } = req.body;
-  if (!email || !password || !name) return res.status(400).json({ error: 'Missing required fields' });
+  if (!email || !password || !name) return res.status(400).json({ error: 'Missing fields' });
   
   try {
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+    if (existingUser) return res.status(400).json({ error: 'Account already exists' });
     
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = crypto.randomUUID();
-    const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
     await User.create({
       id: userId,
@@ -118,14 +125,14 @@ app.post('/api/auth/signup', async (req, res, next) => {
       password_hash: passwordHash,
       full_name: name,
       is_verified: 0,
-      verification_token: verificationToken,
+      verification_token: otp,
       has_completed_onboarding: 0
     });
 
     await UserSettings.create({
       user_id: userId,
       monthly_budget: 2000,
-      currency: 'USD'
+      currency: 'INR'
     });
     
     try {
@@ -133,25 +140,15 @@ app.post('/api/auth/signup', async (req, res, next) => {
         await resend.emails.send({
           from: 'ExpenseHub <onboarding@resend.dev>',
           to: email,
-          subject: `Your ExpenseHub Verification Code: ${verificationToken}`,
-          html: `
-            <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-              <h2>Verify Your Account</h2>
-              <p>Hello ${name},</p>
-              <p>Please use the following 6-digit code to complete your registration:</p>
-              <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
-                ${verificationToken}
-              </div>
-              <p>This code is unique to your account and should not be shared.</p>
-              <p>Thanks!<br>The ExpenseHub Team</p>
-            </div>
-          `
+          subject: `OTP: ${otp}`,
+          html: `<b>Your code: ${otp}</b>`
         });
       }
-      res.status(201).json({ message: 'User created. Please check your email.', otp: verificationToken });
-    } catch (emailErr) {
-      res.status(201).json({ message: 'User created (email error).', otp: verificationToken });
+    } catch (e) {
+      console.error('Email Fail:', e.message);
     }
+    
+    res.status(201).json({ message: 'Success', otp });
   } catch (err) {
     next(err);
   }
@@ -159,83 +156,14 @@ app.post('/api/auth/signup', async (req, res, next) => {
 
 app.post('/api/auth/verify', async (req, res, next) => {
   const { email, otp } = req.body;
-  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
-
   try {
-    const user = await User.findOne({ email, verification_token: otp, is_verified: 0 });
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid or incorrect verification code.' });
-    }
-    
-    user.is_verified = 1;
-    user.verification_token = null;
-    await user.save();
-    
-    res.json({ message: 'Email Verified Successfully!' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/auth/forgot-password', async (req, res, next) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.json({ message: 'If an account exists, a reset code has been sent.' });
-    }
-
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    user.verification_token = resetToken;
-    await user.save();
-
-    try {
-      if (process.env.RESEND_API_KEY) {
-        await resend.emails.send({
-          from: 'ExpenseHub Support <onboarding@resend.dev>',
-          to: email,
-          subject: `ExpenseHub Password Reset Code: ${resetToken}`,
-          html: `
-            <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-              <h2>Reset Your Password</h2>
-              <p>Hello ${user.full_name || 'User'},</p>
-              <p>We received a request to reset your password. Use the code below to complete the reset process:</p>
-              <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; display: inline-block; margin: 20px 0;">
-                ${resetToken}
-              </div>
-              <p>If you did not request this, please ignore this email.</p>
-              <p>Thanks!<br>The ExpenseHub Team</p>
-            </div>
-          `
-        });
-      }
-      res.json({ message: 'If an account exists, a reset code has been sent.', dev_otp: resetToken });
-    } catch (emailErr) {
-      res.json({ message: 'If an account exists, a reset code has been sent (local bypass).', dev_otp: resetToken });
-    }
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/auth/reset-password', async (req, res, next) => {
-  const { email, otp, newPassword } = req.body;
-  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Missing required fields' });
-
-  try {
-    const user = await User.findOne({ email, verification_token: otp });
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired reset code.' });
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    user.password_hash = passwordHash;
-    user.verification_token = null;
-    await user.save();
-    
-    res.json({ message: 'Password successfully updated.' });
+    const user = await User.findOneAndUpdate(
+      { email, verification_token: otp, is_verified: 0 },
+      { $set: { is_verified: 1, verification_token: null } },
+      { new: true }
+    );
+    if (!user) return res.status(400).json({ error: 'Invalid code' });
+    res.json({ message: 'Verified' });
   } catch (err) {
     next(err);
   }
@@ -243,33 +171,17 @@ app.post('/api/auth/reset-password', async (req, res, next) => {
 
 app.post('/api/auth/login', async (req, res, next) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Missing required fields' });
-  
   try {
     const user = await User.findOne({ email });
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (!user.is_verified) return res.status(401).json({ error: 'Unverified' });
     
-    if (user.is_verified === 0) {
-      return res.status(401).json({ error: 'Email not confirmed' });
-    }
-    
-    const tokenPayload = {
-      sub: user.id,
-      email: user.email,
-      user_metadata: { full_name: user.full_name }
-    };
-    const access_token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
-    
+    const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
     res.json({
-      access_token,
-      user: {
-        id: user.id,
-        email: user.email,
-        has_completed_onboarding: user.has_completed_onboarding,
-        user_metadata: { full_name: user.full_name }
-      }
+      access_token: token,
+      user: { id: user.id, email: user.email, has_completed_onboarding: user.has_completed_onboarding }
     });
   } catch (err) {
     next(err);
@@ -279,34 +191,19 @@ app.post('/api/auth/login', async (req, res, next) => {
 app.get('/api/auth/me', authenticateToken, async (req, res, next) => {
   try {
     const user = await User.findOne({ id: req.user.sub });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ user: { id: user.id, email: user.email, has_completed_onboarding: user.has_completed_onboarding, user_metadata: { full_name: user.full_name } } });
+    res.json({ user });
   } catch (err) {
     next(err);
   }
 });
+
+// --- RESOURCES ---
 
 app.get('/api/settings', authenticateToken, async (req, res, next) => {
   try {
     const settings = await UserSettings.findOne({ user_id: req.user.sub });
     const budgets = await CategoryBudget.find({ user_id: req.user.sub });
-    res.json({ 
-      settings: settings || {}, 
-      category_budgets: budgets.map(b => ({ category: b.category, limit: b.limit_amount })) 
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.put('/api/settings', authenticateToken, async (req, res, next) => {
-  const { monthly_budget, currency } = req.body;
-  try {
-    const update = {};
-    if (monthly_budget !== undefined) update.monthly_budget = monthly_budget;
-    if (currency !== undefined) update.currency = currency;
-    await UserSettings.findOneAndUpdate({ user_id: req.user.sub }, { $set: update }, { new: true, upsert: true });
-    res.json({ success: true, message: 'Settings updated' });
+    res.json({ settings, category_budgets: budgets });
   } catch (err) {
     next(err);
   }
@@ -314,21 +211,10 @@ app.put('/api/settings', authenticateToken, async (req, res, next) => {
 
 app.post('/api/settings/onboarding', authenticateToken, async (req, res, next) => {
   const { monthly_budget, currency } = req.body;
-  if (!currency || monthly_budget === undefined) return res.status(400).json({ error: 'Currency and budget are required' });
   try {
-    await UserSettings.findOneAndUpdate({ user_id: req.user.sub }, { $set: { monthly_budget, currency } }, { new: true, upsert: true });
+    await UserSettings.findOneAndUpdate({ user_id: req.user.sub }, { $set: { monthly_budget, currency } }, { upsert: true });
     await User.findOneAndUpdate({ id: req.user.sub }, { $set: { has_completed_onboarding: 1 } });
-    res.json({ message: 'Onboarding completed successfully' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/budgets', authenticateToken, async (req, res, next) => {
-  const { category, limit } = req.body;
-  try {
-    await CategoryBudget.findOneAndUpdate({ user_id: req.user.sub, category }, { $set: { limit_amount: limit }, $setOnInsert: { id: crypto.randomUUID() } }, { new: true, upsert: true });
-    res.json({ success: true });
+    res.json({ message: 'Done' });
   } catch (err) {
     next(err);
   }
@@ -336,36 +222,35 @@ app.post('/api/budgets', authenticateToken, async (req, res, next) => {
 
 app.get('/api/transactions', authenticateToken, async (req, res, next) => {
   try {
-    const transactions = await Transaction.find({ user_id: req.user.sub }).sort({ date: -1, created_at: -1 });
-    res.json({ data: transactions.map(tx => ({ id: tx.id, user_id: tx.user_id, title: tx.title, amount: tx.amount, type: tx.type, category: tx.category, date: tx.date, note: tx.note, created_at: tx.created_at })) });
+    const txs = await Transaction.find({ user_id: req.user.sub }).sort({ date: -1 });
+    res.json({ data: txs });
   } catch (err) {
     next(err);
   }
 });
 
 app.post('/api/transactions', authenticateToken, async (req, res, next) => {
-  const { title, amount, type, category, date, note } = req.body;
   try {
-    const newTx = await Transaction.create({ id: crypto.randomUUID(), user_id: req.user.sub, title, amount, type, category, date, note });
-    res.status(201).json({ data: [{ id: newTx.id, user_id: newTx.user_id, title: newTx.title, amount: newTx.amount, type: newTx.type, category: newTx.category, date: newTx.date, note: newTx.note, created_at: newTx.created_at }] });
+    const tx = await Transaction.create({ ...req.body, id: crypto.randomUUID(), user_id: req.user.sub });
+    res.json({ data: [tx] });
   } catch (err) {
     next(err);
   }
 });
 
 app.delete('/api/transactions/:id', authenticateToken, async (req, res, next) => {
-  const { id } = req.params;
   try {
-    await Transaction.findOneAndDelete({ id, user_id: req.user.sub });
+    await Transaction.findOneAndDelete({ id: req.params.id, user_id: req.user.sub });
     res.json({ success: true });
   } catch (err) {
     next(err);
   }
 });
 
+// Error Handler
 app.use((err, req, res, next) => {
-  console.error('SERVER ERROR:', err);
-  res.status(err.status || 500).json({ error: 'Internal Server Error', message: err.message });
+  console.error('SERVER ERROR:', err.message);
+  res.status(500).json({ error: 'Server Error', message: err.message });
 });
 
 export default app;
