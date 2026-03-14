@@ -29,11 +29,11 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
-  { title: "Budgets", url: "/budgets", icon: Target },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Transactions", url: "/dashboard/transactions", icon: ArrowLeftRight },
+  { title: "Budgets", url: "/dashboard/budgets", icon: Target },
+  { title: "Reports", url: "/dashboard/reports", icon: BarChart3 },
+  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
