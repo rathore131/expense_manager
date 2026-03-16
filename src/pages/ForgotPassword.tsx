@@ -11,7 +11,7 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [devOtp, setDevOtp] = useState<string | null>(null);
+
   
   const { forgotPassword } = useAuth();
 
@@ -25,9 +25,6 @@ export default function ForgotPassword() {
       setErrorMessage(result.error);
       setStatus("error");
     } else {
-      if (result.dev_otp) {
-        setDevOtp(result.dev_otp);
-      }
       setStatus("success");
     }
   };
@@ -63,12 +60,7 @@ export default function ForgotPassword() {
                 If an account exists for <span className="font-medium text-emerald-900">{email}</span>, a reset code has been sent.
               </p>
               
-              {devOtp && (
-                <div className="mt-4 p-3 rounded-lg bg-emerald-100/50 border border-emerald-200 w-full">
-                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Dev Mode OTP</p>
-                  <p className="text-xl font-mono font-bold tracking-[0.2em] text-emerald-900 mt-1">{devOtp}</p>
-                </div>
-              )}
+
             </div>
 
             <Button 

@@ -144,7 +144,7 @@ export default async function handler(req, res) {
         console.error('Email send error:', emailErr.message);
       }
 
-      return json(res, 201, { message: 'Account created. Please use the Dev Mode OTP if the email does not arrive.', otp });
+      return json(res, 201, { message: 'Account created. Please check your email for the verification code.' });
     }
 
     // POST /api/auth/verify
@@ -182,7 +182,7 @@ export default async function handler(req, res) {
         });
       } catch (e) { console.error('Email error:', e.message); }
 
-      return json(res, 200, { message: 'If an account exists, a reset code has been sent.', dev_otp: resetOtp });
+      return json(res, 200, { message: 'If an account exists, a reset code has been sent.' });
     }
 
     // POST /api/auth/reset-password
